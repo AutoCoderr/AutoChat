@@ -1,0 +1,35 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title id="title">tchat en temps réel</title>
+    <script src="/jquery.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+  </head>
+  <body bgcolor="#003333">
+   <br>
+   <br>
+   <br>
+   <br>
+   <br>
+   <center>
+    <table>
+	  <tr>
+	    <td>
+		  <table id="aff" cellspacing="0">
+		  </table>
+		</td>
+		<td style="vertical-align: bottom;">
+		  <table id="connecteds">
+		  </table>
+		</td>
+	  </tr>
+	  <tr>
+	    <td id="form" style="text-align: center;"><font color=white size='3'>Rentre ton pseudo : </font><input onKeyPress='if(event.keyCode == 13) connect();' type='text' id='pseudo'><br><br><input type='button' onclick='connect();' value='valider'/><br><br><br><br><br><br><table><tr><td><input type='button' onclick='formu(2);' value='Créer un compte'/></td><td><input type='button' onclick='formu(1);' value='Connexion avec mot de passe'/></td></tr></table></td><td></td>
+	  </tr>
+	</table>
+   </center>
+  <script src="/client.js"></script>
+  <audio id="bip" src="/bip.mp3"></audio>
+  <div id="command"></div>
+  </body>
+</html>
