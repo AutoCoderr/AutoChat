@@ -1,3 +1,4 @@
+function StartServer(host,user,password,database,table,port) {
 var date = new Date();
 console.log("server start at " + date.getFullYear() + '/' + (date.getMonth()+1) + '/' + date.getDate() + "  " + date.getHours() + ':' + date.getMinutes() + ":" + date.getSeconds());
 var http = require('http'),
@@ -23,15 +24,16 @@ var http = require('http'),
 	
 
 var con = mysql.createConnection({
-  host: "127.0.0.1",
-  user: "root",
-  password: "ctrl980",
-  database: "Server"
+  host: host,
+  user: user,
+  password: password,
+  database: database
 });
+
 con.connect();
 maintaincon();
 
-con.query("SELECT * FROM users", function (err, result, fields) { // ---------------> RECUPERE LA BASE DE DONNEES <-------------------------------------------
+con.query("SELECT * FROM " + table, function (err, result, fields) { // ---------------> RECUPERE LA BASE DE DONNEES <-------------------------------------------
     for (var i=0;i<result.length;i++) {
 		//console.log (result[i].pseudo + "\n");
 		//console.log (result[i].passwd + "\n \n");
@@ -53,7 +55,7 @@ var server = http.createServer(function(req, res) { // -------------------------
 	} else if (page == "/socket.io/") {
 		page = "/socket.io/socket.io.js"
 	}
-	page = "." + page
+	page = __dirname + page
 	var ext = page.split(".")[page.split(".").length-1]
 	if (ext == "mp3") {
 		fs.stat(page, function(error,stats) {
@@ -405,7 +407,7 @@ io.sockets.on('connection', function (socket) {
 	      if (p == 0) {
 			 if (NewACC.pseudo.length <= 30 & NewACC.passwd.length <= 30) {
 			   users.push({ pseudo: NewACC.pseudo, passwd: md5(NewACC.passwd), perm: "000000"});
-			   con.query("INSERT INTO users VALUE (0, '" + NewACC.pseudo + "', '" + md5(NewACC.passwd) + "','000000')");
+			   con.query("INSERT INTO " + table + " VALUE (0, '" + NewACC.pseudo + "', '" + md5(NewACC.passwd) + "','000000')");
 			   socket.emit('msg', { pseudo: 'server', content: "Le compte '" + NewACC.pseudo + "' a été créé avec succès!", type: "msg", imp: "2" });
 			   log(NewACC.pseudo,"Création de compte","Compte créé avec succès",remplace(socket.handshake.address,"::ffff:",""));
 			   
@@ -474,7 +476,7 @@ io.sockets.on('connection', function (socket) {
 			  }
 		  }
 		  if (p == 1) {
-			  con.query("UPDATE users SET passwd = '" + md5(changepass.passwd) + "' WHERE pseudo = '" + changepass.pseudo + "';");
+			  con.query("UPDATE " + table + " SET passwd = '" + md5(changepass.passwd) + "' WHERE pseudo = '" + changepass.pseudo + "';");
 			  socket.emit("changepass", { avi: "OK" } );
 			  socket.emit("msg", { pseudo: "server", content: "Mot de passe changé avec succès!", type: "msg", imp: "2" })
 			  log(changepass.pseudo,"Changement de mot de passe","Mot de passe changé avec succès!",remplace(socket.handshake.address,"::ffff:",""));
@@ -584,7 +586,7 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 			      if (p == 0) {
 					   if (command[2].length <= 30 & command[3].length <= 30) {
 				         users.push({ pseudo: args[0], passwd: md5(args[1]), perm: args[2]});
-			             con.query("INSERT INTO users VALUE (0, '" + args[0] + "', '" + md5(args[1]) + "','" + args[2] + "');");
+			             con.query("INSERT INTO " + table + " VALUE (0, '" + args[0] + "', '" + md5(args[1]) + "','" + args[2] + "');");
 				         socket.emit('msg', { pseudo: 'server', content: "L'utilisateur " + args[0] + " a été ajouté avec succés!", type: "msg", imp: "2" });
 				         log(socket.pseudo,"/adduser",args[0] + " créé avec succès",remplace(socket.handshake.address,"::ffff:",""));
 					   } else {
@@ -620,7 +622,7 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 				    }
 			      }
 			      if (p == 1) {
-			           con.query("DELETE FROM users WHERE pseudo = '" + args[0] + "'");
+			           con.query("DELETE FROM " + table + " WHERE pseudo = '" + args[0] + "'");
 					   for (i=0; i<users.length; i++){
                          if (users[i].pseudo == args[0]) {
                            users.splice(i);
@@ -1047,11 +1049,11 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 					 if (users[i].pseudo == pseudo) {
 						 if (typeof(passwd) != "undefined") {
 							 users[i].passwd = md5(passwd);
-							 con.query("UPDATE users set passwd='" + md5(passwd) + "' where pseudo='" + pseudo + "';");
+							 con.query("UPDATE " + table + " set passwd='" + md5(passwd) + "' where pseudo='" + pseudo + "';");
 						 }
 						 if (typeof(perm) != "undefined") {
 							 users[i].perm = perm;
-							 con.query("UPDATE users set perm='" + perm + "' where pseudo='" + pseudo + "';");
+							 con.query("UPDATE " + table + " set perm='" + perm + "' where pseudo='" + pseudo + "';");
 						 }
 					 }
 				 }
@@ -1101,8 +1103,8 @@ function getargs(command) {
 				  argtmp = command[j];
 				  if (command[j][command[j].length-1] == '"' | j == command.length-1) {
 					 argtmp = remplace(argtmp,'"','');
-					 i = j
-					 j = command.length
+					 i = j;
+					 j = command.length;
 					}
 				  arg = arg + " " + argtmp;
 				}
@@ -1128,4 +1130,7 @@ function maintaincon(){
   }, 1800000);
 }
 
-server.listen(801);
+server.listen(port);
+}
+
+module.exports = StartServer;

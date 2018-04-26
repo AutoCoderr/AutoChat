@@ -1,0 +1,23 @@
+First, Create a mysql Database and a table that will contains users datas (username,password,permissions)
+in this table, create columns : pseudo, passwd, perm
+add first line in this table with: Pseudo of administrator (example : admin), password (hashed in md5),
+                                   and permissions (binary code whit6 bits, to allow all permissions, put '111111')
+
+after, download this with npm or from github and create a launcher script like this : 
+
+
+   var chat = require("./AutoChat"); //if downloaded in 'AutoChat folder'
+   // or var chat = require("AutoChat"); if downloaded with npm
+
+   chat('127.0.0.1','root','1234','AutoChat','users',8080);
+   
+127.0.0.1 : ip adress of mysql server
+root : username used for mysql
+1234 : password for mysql
+Autochat : Database
+users : table where is socked users datas
+8080 : port used for server
+
+after server is started, you can connect on with administrators login, and create other users with '/adduser' command
+
+to view all command, type '/help'

@@ -1,0 +1,31 @@
+{
+  "name": "autochat",
+  "version": "1.0.0",
+  "description": "A Simple Chat Server",
+  "main": "serv.js",
+  "dependencies": {
+    "events": "^2.0.0",
+    "fs": "^0.0.1-security",
+    "http": "^0.0.0",
+    "md5": "^2.2.1",
+    "mysql": "^2.15.0",
+    "path": "^0.12.7",
+    "socket.io": "^2.1.0",
+    "url": "^0.11.0",
+    "util": "^0.10.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AutoCoderr/AutoChat.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/AutoCoderr/AutoChat/issues"
+  },
+  "homepage": "https://github.com/AutoCoderr/AutoChat#readme"
+}
