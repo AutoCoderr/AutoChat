@@ -1,4 +1,4 @@
-    var socket = io.connect('http://' + location.hostname + ':801');
+    var socket = io.connect('http://' + location.hostname + ':' + location.port);
 	$("#pseudo").select();
 	var file;
 	var reader;

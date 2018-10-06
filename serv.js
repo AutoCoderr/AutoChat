@@ -1,15 +1,12 @@
-function StartServer(host,user,password,database,table,port) {
+function StartServer(database,port) {
 var date = new Date();
 console.log("server start at " + date.getFullYear() + '/' + (date.getMonth()+1) + '/' + date.getDate() + "  " + date.getHours() + ':' + date.getMinutes() + ":" + date.getSeconds());
 var http = require('http'),
     fs = require('fs'),
 	url = require('url'),
-    mysql = require('mysql'),
     md5 = require('md5'),
 	path = require('path'),
-    util = require('util'),
-	//sizeOf = require('image-size'),
-	EventEmitter = require('events').EventEmitter,
+	MongoClient = require("mongodb").MongoClient;
 	
 	colors = new Array("E7001A","E70077","8000E7","0500E7","0086E7","00E2E7",
 	                   "00E778","95E700","E7BE00","E74200","BA3032","BA309B",
@@ -19,28 +16,19 @@ var http = require('http'),
     banip = new Array(),
     users = new Array(), 
     hist = new Array(),
-	emiter = new EventEmitter(),
+	users_collect = "users",
 	idmsg = 0;
-	
 
-var con = mysql.createConnection({
-  host: host,
-  user: user,
-  password: password,
-  database: database
-});
-
-con.connect();
-maintaincon();
-
-con.query("SELECT * FROM " + table, function (err, result, fields) { // ---------------> RECUPERE LA BASE DE DONNEES <-------------------------------------------
-    for (var i=0;i<result.length;i++) {
-		//console.log (result[i].pseudo + "\n");
-		//console.log (result[i].passwd + "\n \n");
-		users.push({ pseudo: result[i].pseudo, passwd: result[i].passwd, perm: result[i].perm})
-	}
-	//console.log (ops);
-	//emiter.emit('ok');
+MongoClient.connect("mongodb://127.0.0.1:27017/", function(error, db) {
+    if (error) return funcCallback(error);
+	db.db(database).collection(users_collect).find({}).toArray(function (err,result) {
+		if (err) throw err;
+		//console.log(result);
+		for (var i=0;i<result.length;i++) {
+			users.push({ pseudo: result[i].pseudo, passwd: result[i].passwd, perm: result[i].perm})
+		}
+		db.close();
+	});
 });
 
 var presents = new Array({ pseudo: 'server', id: "0" });
@@ -168,11 +156,11 @@ io.sockets.on('connection', function (socket) {
                    data.ext = data.name.split(".")[data.name.split(".").length-1];
                    if (data.ext == "jpg" | data.ext == "png" | data.ext == "bmp" | data.ext == "jpeg" | data.ext == "gif" | data.ext == "tif" | data.ext == "tiff"){
 		             data.num = 1;
-	                 while (fs.existsSync("/media/server/xampp/tchat/server/imgs/" + data.name.split(".")[0] + data.num + "." + data.ext)) {
+	                 while (fs.existsSync(path.resolve(__dirname,"imgs",data.name.split(".")[0] + data.num + "." + data.ext))) {
                         data.num += 1;
 					 }
-                     socket.filename = data.name.split(".")[0] + data.num + "." + data.ext
-		             socket.handler = fs.openSync("/media/server/xampp/tchat/server/imgs/" + socket.filename, 'a')
+                     socket.filename = data.name.split(".")[0] + data.num + "." + data.ext;
+		             socket.handler = fs.openSync(path.resolve(__dirname,"imgs",socket.filename), 'a');
 		         } else {
                    socket.emit('repupload', { type: 'refused', raison: "Ce n'est pas une image" });
 				   log(socket.pseudo,"Envoyer une image","Ce n'est pas une image",remplace(socket.handshake.address,"::ffff:",""));
@@ -407,7 +395,8 @@ io.sockets.on('connection', function (socket) {
 	      if (p == 0) {
 			 if (NewACC.pseudo.length <= 30 & NewACC.passwd.length <= 30) {
 			   users.push({ pseudo: NewACC.pseudo, passwd: md5(NewACC.passwd), perm: "000000"});
-			   con.query("INSERT INTO " + table + " VALUE (0, '" + NewACC.pseudo + "', '" + md5(NewACC.passwd) + "','000000')");
+			   //con.query("INSERT INTO " + table + " VALUE (0, '" + NewACC.pseudo + "', '" + md5(NewACC.passwd) + "','000000')");
+			   insertinto({pseudo: NewACC.pseudo, passwd: md5(NewACC.passwd), perm: '000000'});
 			   socket.emit('msg', { pseudo: 'server', content: "Le compte '" + NewACC.pseudo + "' a été créé avec succès!", type: "msg", imp: "2" });
 			   log(NewACC.pseudo,"Création de compte","Compte créé avec succès",remplace(socket.handshake.address,"::ffff:",""));
 			   
@@ -559,8 +548,27 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 		  socket.emit('msg', { pseudo: 'server', content: "il y a 11 commandes en tout :<br>/exit : se deconnecter (ne neccesite aucune permissions)<br>/surlign : surligne votre message afin qu'il soit mis en avant (pour les modérateurs)<br>/suppr : supprime un ou plusieurs messages (pour les modérateur)<br>/kick : virer quelqu'un (pour les modérateurs)<br>/ban et /pardon : bannir ou pardonner quelqu'un par son pseudo (pour les modérateurs)<br>/banip et /pardonip : bannir ou pardonner quelqu'un par son IP (pour les modérateurs)<br>/adduser et /userdel : ajouter ou supprimer un utilisateur (pour les admins)<br>/alter : modifier les permissions ou le mot de passe de quelqu'un (pour les admins)<br>/help : affiche cette aide", type: "msg", imp: "4" });
 		  log(socket.pseudo,"/help","Demande de l'aide pour les commande",remplace(socket.handshake.address,"::ffff:",""));
 		  break; // -------------------------------------> FIN COMMANDE "/help" <--------------------------------------------------
-		  
-		case "/adduser": // -------------------------------> DEBUT COMMANDE "/adduser" <---------------------------------------
+		
+		case "/userlist": // ------------------------------> DEBUT COMMANDE "/userlist" <----------------------------------------
+		  socket.cmd = 1
+		  socket.perm = 0
+		  for (i=0; i<users.length; i++){
+			  if (users[i].pseudo == socket.pseudo & users[i].perm[5] == "1") {
+				  socket.perm = 1;
+		      }
+		  }
+		  if (socket.perm == 1) {
+			  socket.emit('msg', { pseudo: 'server', content: "liste des utilisateurs : ", type: "msg", imp: "4" });
+			  for (var i=0;i<users.length;i++) {
+				  socket.emit('msg', { pseudo: 'server', content: "&nbsp;&nbsp;&nbsp;&nbsp;" + users[i].pseudo + "[" + users[i].perm + "]", type: "msg", imp: "4" });
+			  }
+			  log(socket.pseudo,"/userlist","affiche la liste des utilisateurs",remplace(socket.handshake.address,"::ffff:",""));
+		  } else if (socket.perm == 0) {
+			  socket.emit('msg', { pseudo: 'server', content: "vous ne semblez pas avoir les permissions necéssaires.", type: "msg", imp: "3" });
+			  log(socket.pseudo,"/userlist","Permissions insuffisantes",remplace(socket.handshake.address,"::ffff:",""));
+		  }
+		  break; // ---------------------------------------> FIN COMMANDE "/userlist" <----------------------------------------
+		case "/adduser": // -------------------------------> DEBUT COMMANDE "/adduser" <---------------------------------------------
 		  socket.cmd = 1
 		  socket.perm = 0
 		  for (i=0; i<users.length; i++){
@@ -586,7 +594,8 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 			      if (p == 0) {
 					   if (command[2].length <= 30 & command[3].length <= 30) {
 				         users.push({ pseudo: args[0], passwd: md5(args[1]), perm: args[2]});
-			             con.query("INSERT INTO " + table + " VALUE (0, '" + args[0] + "', '" + md5(args[1]) + "','" + args[2] + "');");
+			             //con.query("INSERT INTO " + table + " VALUE (0, '" + args[0] + "', '" + md5(args[1]) + "','" + args[2] + "');");
+						 insertinto({pseudo: args[0], passwd: md5(args[1]), perm: args[2]});
 				         socket.emit('msg', { pseudo: 'server', content: "L'utilisateur " + args[0] + " a été ajouté avec succés!", type: "msg", imp: "2" });
 				         log(socket.pseudo,"/adduser",args[0] + " créé avec succès",remplace(socket.handshake.address,"::ffff:",""));
 					   } else {
@@ -622,7 +631,8 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 				    }
 			      }
 			      if (p == 1) {
-			           con.query("DELETE FROM " + table + " WHERE pseudo = '" + args[0] + "'");
+			           //con.query("DELETE FROM " + table + " WHERE pseudo = '" + args[0] + "'");
+					   deletefrom({pseudo: args[0]});
 					   for (i=0; i<users.length; i++){
                          if (users[i].pseudo == args[0]) {
                            users.splice(i);
@@ -1049,11 +1059,13 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 					 if (users[i].pseudo == pseudo) {
 						 if (typeof(passwd) != "undefined") {
 							 users[i].passwd = md5(passwd);
-							 con.query("UPDATE " + table + " set passwd='" + md5(passwd) + "' where pseudo='" + pseudo + "';");
+							 //con.query("UPDATE " + table + " set passwd='" + md5(passwd) + "' where pseudo='" + pseudo + "';");
+							 update({pseudo: pseudo},{$set:{passwd: md5(passwd)}});
 						 }
 						 if (typeof(perm) != "undefined") {
 							 users[i].perm = perm;
-							 con.query("UPDATE " + table + " set perm='" + perm + "' where pseudo='" + pseudo + "';");
+							 //con.query("UPDATE " + table + " set perm='" + perm + "' where pseudo='" + pseudo + "';");
+							 update({pseudo: pseudo},{$set:{perm: perm}});
 						 }
 					 }
 				 }
@@ -1079,7 +1091,7 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 		
 	}
 	if (socket.cmd == 0){
-		socket.emit('msg', { pseudo: 'server', content: command[0] + " : Cette commande n'existe pas.", type: "msg", imp: "3" });
+		socket.emit('msg', { pseudo: 'server', content: command[0] + " : Cette commande n'existe pas. /help pour la liste des commandes", type: "msg", imp: "3" });
 		log(socket.pseudo,command[0],"Cette commande n'existe pas.",remplace(socket.handshake.address,"::ffff:",""));
 	}
 }
@@ -1119,18 +1131,64 @@ function getargs(command) {
 	return args;
 }
 
+function insertinto(obj) {
+	MongoClient.connect("mongodb://127.0.0.1:27017/", function(error, db) {
+		if (error) return funcCallback(error);
+
+		db.db(database).collection(users_collect).insertOne(obj, function(err, res) {
+			if (err) throw err;
+			db.close();
+		});
+	});
+}
+
+function deletefrom(conditions) {
+	MongoClient.connect("mongodb://127.0.0.1:27017/", function(error, db) {
+		if (error) return funcCallback(error);
+
+		db.db(database).collection(users_collect).deleteOne(conditions, function(err, obj) {
+			if (err) throw err;
+			db.close();
+		});
+	});
+}
+function update(conditions,operation) {
+	MongoClient.connect("mongodb://127.0.0.1:27017/", function(error, db) {
+		if (error) return funcCallback(error);
+
+		db.db(database).collection(users_collect).updateOne(conditions, operation, function(err, res) {
+			if (err) throw err;
+			db.close();
+		});
+	});
+}
+
 function log(pseudo,context,msg,ip) {
 	var date = new Date();
 	console.log(date.getFullYear() + '/' + (date.getMonth()+1) + '/' + date.getDate() + "  " + date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds() + ' => ' + context + ' => ' + pseudo + ' : ' + msg + ' (' + ip + ')');
 }
 
-function maintaincon(){
-  setInterval(function () {
-      con.query('SELECT 1');
-  }, 1800000);
-}
-
 server.listen(port);
 }
 
-module.exports = StartServer;
+function CreateDB(database,admin,passwd) {
+	var MongoClient = require("mongodb").MongoClient,
+		md5 = require('md5'),
+		users_collect = "users";
+	console.log("for more security ")
+	MongoClient.connect("mongodb://127.0.0.1:27017/" + database, function(err, db) {
+		if (err) throw err;
+		db.close();
+		console.log("Database succesfully created!");
+		MongoClient.connect("mongodb://127.0.0.1:27017/", function(error, db) {
+			if (error) return funcCallback(error);
+			db.db(database).collection(users_collect).insertOne({pseudo: admin, passwd: md5(passwd), perm: "111111"}, function(err, res) {
+				if (err) throw err;
+				db.close();
+				console.log("'Users' collection with user admin document succesfully created !");
+			});
+		});
+	});
+}
+
+module.exports = {start: StartServer, CreateDB: CreateDB};
