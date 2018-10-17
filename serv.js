@@ -465,7 +465,8 @@ io.sockets.on('connection', function (socket) {
 			  }
 		  }
 		  if (p == 1) {
-			  con.query("UPDATE " + table + " SET passwd = '" + md5(changepass.passwd) + "' WHERE pseudo = '" + changepass.pseudo + "';");
+			  //con.query("UPDATE " + table + " SET passwd = '" + md5(changepass.passwd) + "' WHERE pseudo = '" + changepass.pseudo + "';");
+			  update({pseudo: changepass.pseudo},{$set:{passwd: md5(changepass.passwd)}});
 			  socket.emit("changepass", { avi: "OK" } );
 			  socket.emit("msg", { pseudo: "server", content: "Mot de passe changé avec succès!", type: "msg", imp: "2" })
 			  log(changepass.pseudo,"Changement de mot de passe","Mot de passe changé avec succès!",remplace(socket.handshake.address,"::ffff:",""));
@@ -545,7 +546,7 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 		  
 		case "/help": // --------------------------------> DEBUT COMMANDE "/help" <------------------------------------------------
 		  socket.cmd = 1
-		  socket.emit('msg', { pseudo: 'server', content: "il y a 11 commandes en tout :<br>/exit : se deconnecter (ne neccesite aucune permissions)<br>/surlign : surligne votre message afin qu'il soit mis en avant (pour les modérateurs)<br>/suppr : supprime un ou plusieurs messages (pour les modérateur)<br>/kick : virer quelqu'un (pour les modérateurs)<br>/ban et /pardon : bannir ou pardonner quelqu'un par son pseudo (pour les modérateurs)<br>/banip et /pardonip : bannir ou pardonner quelqu'un par son IP (pour les modérateurs)<br>/adduser et /userdel : ajouter ou supprimer un utilisateur (pour les admins)<br>/alter : modifier les permissions ou le mot de passe de quelqu'un (pour les admins)<br>/help : affiche cette aide", type: "msg", imp: "4" });
+		  socket.emit('msg', { pseudo: 'server', content: "il y a 11 commandes en tout :<br>/exit : se deconnecter (ne neccesite aucune permissions)<br>/surlign : surligne votre message afin qu'il soit mis en avant (pour les modérateurs)<br>/suppr : supprime un ou plusieurs messages (pour les modérateur)<br>/kick : virer quelqu'un (pour les modérateurs)<br>/ban et /pardon : bannir ou pardonner quelqu'un par son pseudo (pour les modérateurs)<br>/banip et /pardonip : bannir ou pardonner quelqu'un par son IP (pour les modérateurs)<br>/userlist, /adduser et /userdel : lister, ajouter ou supprimer un utilisateur (pour les admins)<br>/alter : modifier les permissions ou le mot de passe de quelqu'un (pour les admins)<br>/help : affiche cette aide", type: "msg", imp: "4" });
 		  log(socket.pseudo,"/help","Demande de l'aide pour les commande",remplace(socket.handshake.address,"::ffff:",""));
 		  break; // -------------------------------------> FIN COMMANDE "/help" <--------------------------------------------------
 		
