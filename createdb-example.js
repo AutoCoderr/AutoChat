@@ -2,5 +2,5 @@
 
 var chat = require("./AutoChat");
 
-chat.CreateDB("DataBase name","admin user","admin password");
+chat.CreateDB("DataBase name","Users collection","admin user","admin password");
 

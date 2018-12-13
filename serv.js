@@ -1,4 +1,4 @@
-function StartServer(database,port) {
+function StartServer(database,users_collect,msg_collect,port) {
 var date = new Date();
 console.log("server start at " + date.getFullYear() + '/' + (date.getMonth()+1) + '/' + date.getDate() + "  " + date.getHours() + ':' + date.getMinutes() + ":" + date.getSeconds());
 var http = require('http'),
@@ -6,30 +6,45 @@ var http = require('http'),
 	url = require('url'),
     md5 = require('md5'),
 	path = require('path'),
+	util = require('util'),
 	MongoClient = require("mongodb").MongoClient;
 	
 	colors = new Array("E7001A","E70077","8000E7","0500E7","0086E7","00E2E7",
 	                   "00E778","95E700","E7BE00","E74200","BA3032","BA309B",
 					   "6630BA","309BBA","30BA7C","52BA30","BAB330","BA4F30"),
-	
+	users = new Array(),
+	hist = new Array(),
     ban = new Array(),
     banip = new Array(),
-    users = new Array(), 
-    hist = new Array(),
-	users_collect = "users",
 	idmsg = 0;
 
 MongoClient.connect("mongodb://127.0.0.1:27017/", function(error, db) {
     if (error) return funcCallback(error);
 	db.db(database).collection(users_collect).find({}).toArray(function (err,result) {
 		if (err) throw err;
-		//console.log(result);
-		for (var i=0;i<result.length;i++) {
-			users.push({ pseudo: result[i].pseudo, passwd: result[i].passwd, perm: result[i].perm})
-		}
+		users = result;
 		db.close();
 	});
 });
+
+MongoClient.connect("mongodb://127.0.0.1:27017/", function(error, db) {
+    if (error) return funcCallback(error);
+	db.db(database).collection(msg_collect).find({}).toArray(function (err,result) {
+		if (err) throw err;
+		hist = result;
+		db.close();
+		if (hist.length > 0) {
+			var IndexMsgTmp = hist.length-1;
+			while (hist[IndexMsgTmp].id == "" & IndexMsgTmp >= 0) {
+				IndexMsgTmp -= 1;
+			}
+			if (hist[IndexMsgTmp].id != "") {
+				idmsg = hist[IndexMsgTmp].id;
+			}
+		}
+	});
+});
+
 
 var presents = new Array({ pseudo: 'server', id: "0" });
 var p = 0;
@@ -129,6 +144,7 @@ io.sockets.on('connection', function (socket) {
 			idmsg = idmsg + 1;
 		    socket.emit('msg', { pseudo: socket.pseudo, content: msg, type: "msg", imp: "1", color: socket.color, id: idmsg });
 		    socket.broadcast.emit('msg', { pseudo: socket.pseudo, content: msg, type: "msg", imp: "1", color: socket.color, id: idmsg });
+		    insertinto({ pseudo: socket.pseudo, content: msg, imp: "1", color: socket.color, id: idmsg },msg_collect);
 			hist.push({ pseudo: socket.pseudo, content: msg, imp: "1", color: socket.color, id: idmsg });
 		  } else {
 			commands(socket,msg);
@@ -180,6 +196,7 @@ io.sockets.on('connection', function (socket) {
 		              socket.emit('msg', { pseudo: socket.pseudo, content: "<img width='200px' src='/imgs/" + socket.filename + "'/>", type: "msg", imp: "1", id: idmsg });
 		              socket.broadcast.emit('msg', { pseudo: socket.pseudo, content: "<img width='200px' src='/imgs/" + socket.filename + "'/>", type: "msg", imp: "1", id: idmsg });
 		              hist.push({ pseudo: socket.pseudo, content: "<img width='200px' src='/imgs/" + socket.filename + "'/>", imp: "1", id: idmsg });
+		              insertinto({ pseudo: socket.pseudo, content: "<img width='200px' src='/imgs/" + socket.filename + "'/>", imp: "1", id: idmsg },msg_collect);
 		              log(socket.pseudo,"Envoyer image","a posté '" + socket.filename + "'",remplace(socket.handshake.address,"::ffff:",""));
 		              socket.handler = 0;
 	                  socket.downloaded = 0;
@@ -396,7 +413,7 @@ io.sockets.on('connection', function (socket) {
 			 if (NewACC.pseudo.length <= 30 & NewACC.passwd.length <= 30) {
 			   users.push({ pseudo: NewACC.pseudo, passwd: md5(NewACC.passwd), perm: "000000"});
 			   //con.query("INSERT INTO " + table + " VALUE (0, '" + NewACC.pseudo + "', '" + md5(NewACC.passwd) + "','000000')");
-			   insertinto({pseudo: NewACC.pseudo, passwd: md5(NewACC.passwd), perm: '000000'});
+			   insertinto({pseudo: NewACC.pseudo, passwd: md5(NewACC.passwd), perm: '000000'},users_collect);
 			   socket.emit('msg', { pseudo: 'server', content: "Le compte '" + NewACC.pseudo + "' a été créé avec succès!", type: "msg", imp: "2" });
 			   log(NewACC.pseudo,"Création de compte","Compte créé avec succès",remplace(socket.handshake.address,"::ffff:",""));
 			   
@@ -466,7 +483,7 @@ io.sockets.on('connection', function (socket) {
 		  }
 		  if (p == 1) {
 			  //con.query("UPDATE " + table + " SET passwd = '" + md5(changepass.passwd) + "' WHERE pseudo = '" + changepass.pseudo + "';");
-			  update({pseudo: changepass.pseudo},{$set:{passwd: md5(changepass.passwd)}});
+			  update({pseudo: changepass.pseudo},{$set:{passwd: md5(changepass.passwd)}},users_collect);
 			  socket.emit("changepass", { avi: "OK" } );
 			  socket.emit("msg", { pseudo: "server", content: "Mot de passe changé avec succès!", type: "msg", imp: "2" })
 			  log(changepass.pseudo,"Changement de mot de passe","Mot de passe changé avec succès!",remplace(socket.handshake.address,"::ffff:",""));
@@ -596,7 +613,7 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 					   if (command[2].length <= 30 & command[3].length <= 30) {
 				         users.push({ pseudo: args[0], passwd: md5(args[1]), perm: args[2]});
 			             //con.query("INSERT INTO " + table + " VALUE (0, '" + args[0] + "', '" + md5(args[1]) + "','" + args[2] + "');");
-						 insertinto({pseudo: args[0], passwd: md5(args[1]), perm: args[2]});
+						 insertinto({pseudo: args[0], passwd: md5(args[1]), perm: args[2]},users_collect);
 				         socket.emit('msg', { pseudo: 'server', content: "L'utilisateur " + args[0] + " a été ajouté avec succés!", type: "msg", imp: "2" });
 				         log(socket.pseudo,"/adduser",args[0] + " créé avec succès",remplace(socket.handshake.address,"::ffff:",""));
 					   } else {
@@ -633,7 +650,7 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 			      }
 			      if (p == 1) {
 			           //con.query("DELETE FROM " + table + " WHERE pseudo = '" + args[0] + "'");
-					   deletefrom({pseudo: args[0]});
+					   deletefrom({pseudo: args[0]},users_collect);
 					   for (i=0; i<users.length; i++){
                          if (users[i].pseudo == args[0]) {
                            users.splice(i);
@@ -674,6 +691,7 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
                           socket.emit('msg', { pseudo: socket.pseudo, content: msg, type: "msg", imp: "5", color: socket.color, id: idmsg });
                           socket.broadcast.emit('msg', { pseudo: socket.pseudo, content: msg, type: "msg", imp: "5", color: socket.color, id: idmsg });
                           hist.push({ pseudo: socket.pseudo, content: msg, imp: "5", color: socket.color, id: idmsg });
+                          insertinto({ pseudo: socket.pseudo, content: msg, imp: "5", color: socket.color, id: idmsg },msg_collect);
 						  log(socket.pseudo,"/surlign",msg,remplace(socket.handshake.address,"::ffff:",""));
                      } else {
                           socket.emit('msg', { pseudo: 'server', content: "la syntaxe de cette commande est : /surlign 'le message'", type: "msg", imp: "3" });
@@ -843,6 +861,7 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 					  socket.emit('msg', { pseudo: 'server', content: "Utilisez la commande /pardon pour le pardonner", type: "msg", imp: "4" });
 					  socket.broadcast.emit('msg', { pseudo: 'server', content: args[0] + " est bannis", type: "msg", imp: "4", id: "" });
 					  hist.push({ pseudo: 'server', content: args[0] + " est bannis", imp: "4", id: "" });
+					  insertinto({ pseudo: 'server', content: args[0] + " est bannis", imp: "4", id: "" },msg_collect);
 					  log(socket.pseudo,"/ban",args[0] + " a été bannis avec succès!",remplace(socket.handshake.address,"::ffff:",""));
 				  }
 			  } else {
@@ -943,6 +962,7 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 					  }
 					  socket.broadcast.emit('msg', { pseudo: 'server', content: args[0] + " est bannis", type: "msg", imp: "4", id: "" });
 					  hist.push({ pseudo: 'server', content: args[0] + " est bannis", imp: "4", id: "" });
+					  insertinto({ pseudo: 'server', content: args[0] + " est bannis", imp: "4", id: "" },msg_collect);
 				  }
 			  } else {
 				  socket.emit('msg', { pseudo: 'server', content: "La syntaxe de cette commande est : /banip 'le pseudo'", type: "msg", imp: "3" });
@@ -1061,12 +1081,12 @@ function commands(socket,command0) { // -------------------------------> TOUTES 
 						 if (typeof(passwd) != "undefined") {
 							 users[i].passwd = md5(passwd);
 							 //con.query("UPDATE " + table + " set passwd='" + md5(passwd) + "' where pseudo='" + pseudo + "';");
-							 update({pseudo: pseudo},{$set:{passwd: md5(passwd)}});
+							 update({pseudo: pseudo},{$set:{passwd: md5(passwd)}},users_collect);
 						 }
 						 if (typeof(perm) != "undefined") {
 							 users[i].perm = perm;
 							 //con.query("UPDATE " + table + " set perm='" + perm + "' where pseudo='" + pseudo + "';");
-							 update({pseudo: pseudo},{$set:{perm: perm}});
+							 update({pseudo: pseudo},{$set:{perm: perm}},users_collect);
 						 }
 					 }
 				 }
@@ -1132,36 +1152,49 @@ function getargs(command) {
 	return args;
 }
 
-function insertinto(obj) {
+function insertinto(obj,collect) {
 	MongoClient.connect("mongodb://127.0.0.1:27017/", function(error, db) {
 		if (error) return funcCallback(error);
 
-		db.db(database).collection(users_collect).insertOne(obj, function(err, res) {
+		db.db(database).collection(collect).insertOne(obj, function(err, res) {
 			if (err) throw err;
 			db.close();
 		});
 	});
 }
 
-function deletefrom(conditions) {
+function deletefrom(conditions,collect) {
 	MongoClient.connect("mongodb://127.0.0.1:27017/", function(error, db) {
-		if (error) return funcCallback(error);
+		if (error) throw error;
 
-		db.db(database).collection(users_collect).deleteOne(conditions, function(err, obj) {
+		db.db(database).collection(collect).deleteOne(conditions, function(err, obj) {
 			if (err) throw err;
 			db.close();
 		});
 	});
 }
-function update(conditions,operation) {
+function update(conditions,operation,collect) {
 	MongoClient.connect("mongodb://127.0.0.1:27017/", function(error, db) {
-		if (error) return funcCallback(error);
+		if (error) throw error;
 
-		db.db(database).collection(users_collect).updateOne(conditions, operation, function(err, res) {
+		db.db(database).collection(collect).updateOne(conditions, operation, function(err, res) {
 			if (err) throw err;
 			db.close();
 		});
 	});
+}
+
+function getfrom(conditions,collect,callback) {
+	MongoClient.connect("mongodb://127.0.0.1:27017/", function(error, db) {
+  		if (error) throw error;
+  		db.db(database).collection(collect).find(conditions).toArray(function(err, result) {
+    		if (err) throw err;
+    		db.close();
+    		console.log(collect+" : ");
+    		console.log(result);
+    		return result;
+  		});
+	}); 
 }
 
 function log(pseudo,context,msg,ip) {
@@ -1172,10 +1205,9 @@ function log(pseudo,context,msg,ip) {
 server.listen(port);
 }
 
-function CreateDB(database,admin,passwd) {
+function CreateDB(database,users_collect,admin,passwd) {
 	var MongoClient = require("mongodb").MongoClient,
-		md5 = require('md5'),
-		users_collect = "users";
+		md5 = require('md5');
 	console.log("for more security ")
 	MongoClient.connect("mongodb://127.0.0.1:27017/" + database, function(err, db) {
 		if (err) throw err;
@@ -1186,7 +1218,7 @@ function CreateDB(database,admin,passwd) {
 			db.db(database).collection(users_collect).insertOne({pseudo: admin, passwd: md5(passwd), perm: "111111"}, function(err, res) {
 				if (err) throw err;
 				db.close();
-				console.log("'Users' collection with user admin document succesfully created !");
+				console.log("'"+users_collect+"' collection with user admin document succesfully created !");
 			});
 		});
 	});

@@ -2,5 +2,5 @@
 
 var chat = require("./AutoChat");
 
-chat.start("name of database",Port number);
+chat.start("name of database","Users Collection","Messages collection",Port number);
 
